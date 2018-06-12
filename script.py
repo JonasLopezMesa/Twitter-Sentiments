@@ -8,9 +8,10 @@ from requests_oauthlib import OAuth1
 import string
 from pymongo import MongoClient
 import matplotlib.pyplot as plt
-from sklearn.feature_extraction.text import TfidfVectorizer 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.exceptions import NotFittedError
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score 
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.model_selection import cross_val_predict
 #para los otros tipos de algoritmos:
 from sklearn.svm import SVC #Support Vector Classification
@@ -35,10 +36,15 @@ from nltk.corpus import stopwords
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 nltk.download('stopwords')
 nltk.download('vader_lexicon')
+if  path.exists('fvecto'):
+    fvecto = open('fvecto', 'rb') #abre el archivo en modo lectura
+    vectorizer = load(fvecto) #carga el archivo en la variable 
+else:
+    vectorizer = TfidfVectorizer(min_df=5, max_df = 0.8, sublinear_tf=True, use_idf=True)
 
 
 def mostrar_menu_principal():
-    os.system('cls') #limpiar la pantalla del terminal
+    #os.system('cls') #limpiar la pantalla del terminal
     print("\t**********************************************")
     print("\t***  Análisis de Sentimientos en Twitter   ***")
     print("\t**********************************************")
@@ -54,7 +60,7 @@ y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para ent
 Estaría bien poder pasarle a la función el número de tweets que queremos buscar 
 por cada iteración, el número de iteraciones y la búsqueda que queremos hacer.
 '''
-def cargar_datos_de_twitter(consulta, iteraciones, tweet_por_iteracion):
+def cargar_datos_de_twitter(consulta, iteraciones, tweet_por_iteracion, vectorizer):
     #Claves y tokens de la cuenta de twitter
     consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
     consumer_secret='6alIXTKSxf0RE57QK3fDQ8dxdvlsVr1IRsHDZmoSlMx96YKBFD'
@@ -94,42 +100,33 @@ def cargar_datos_de_twitter(consulta, iteraciones, tweet_por_iteracion):
     #devices.remove('Twitter Ads')
     df = df[df['tweet_source'].isin(devices)]
     ##################################################################
+    #DEL DATAFRAME A UN CSV A UN DATAFRAME
+    df2 = pd.DataFrame(data=df['text'])
+    df2.to_csv('export.csv')
+    dataset = pd.read_csv('export.csv')
+    df3 =pd.DataFrame(data=dataset['text'])
+    tweetys = df3['text'] #para NER
+    ##################################################################
     #TOKENIZATION
-    df['tokens'] = df['text'].apply(TweetTokenizer().tokenize)
+    df3['tokens'] = df3['text'].apply(TweetTokenizer().tokenize)
     #STOPWORDS
     stopwords_vocabulary = stopwords.words('english') #estará en español?
-    df['stopwords'] = df['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
+    df3['stopwords'] = df3['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
     #SPECIAL CHARACTERS AND STOPWORDS REMOVAL
     punctuations = list(string.punctuation)
-    df['punctuation'] = df['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
-    df['digits'] = df['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
-    df['final'] = df['digits'].apply(lambda x: [i for i in x if len(i) > 1])
-
-    test_data = df['final']
-    test_data = list(test_data.apply(' '.join))
-    print(test_data)
+    df3['punctuation'] = df3['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
+    df3['digits'] = df3['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
+    df3['final'] = df3['digits'].apply(lambda x: [i for i in x if len(i) > 1])
     
-    vectorizer = TfidfVectorizer(min_df=5, max_df = 0.8, sublinear_tf=True, use_idf=True)
-    vectorizer = vectorizer
-    test_vectors = vectorizer.transform(test_data)
+    test_data = df3['final'][-100:] #saca sólo los últimos 100
+    anNER = df3['final'][-100:] #saca sólo los últimos 100
+    test_data = list(test_data.apply(' '.join))
 
-    print(test_data)
-    #Prueba con Naive Bayes
-    mod = MultinomialNB()
-    file = open('NaiveBayes', 'rb')
-    mod = load(file)
-    result = mod.predict(test_vectors)
-    print(result)
-    pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
-    neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
-    neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
-    y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-    #construimos un gráfico con los datos del vector
-    plt.title("Sentiment Analysis")
-    plt.ylabel('Number of tweets')
-    plt.xticks(range(len(y)), ['positive', 'neutral', 'negative'])
-    plt.bar(range(len(y)), height=y, width = 0.75, align = 'center', alpha = 0.8)
-    plt.show()
+    resultadoNER = usar_NER(anNER,3)
+    print(resultadoNER)
+    
+    test_vectors = vectorizer.transform(test_data)
+    predecir_Naive_Bayes(test_vectors)
 '''
 Función que recibe un dataframe con tweets de twitter y los deja preparados para
 ser analizados.
@@ -154,7 +151,7 @@ def limpieza_de_datos_de_twitter(df):
 Función que entrena todos los algoritmos utilizando datos de ficheros de entrenamiento
 y de test. En la misma función se limpian los datos tokenizados.
 '''
-def entrenar_algoritmos():
+def entrenar_algoritmos(vectorizer):
     filename2 = input("\tEscribe el nombre del fichero de entrenamiento: ") or 'prueba.csv'
     filename = input("\tEscribe el nombre del fichero de pruebas (test): ") or 'testdata.manual.2009.06.14.csv'
     dataset = pd.read_csv(filename)
@@ -196,9 +193,13 @@ def entrenar_algoritmos():
     train_data = list(train_data.apply(' '.join))
     test_data = list(test_data.apply(' '.join))
     #Preparar datos para los modelos
-    vectorizer_one = TfidfVectorizer(min_df=5, max_df = 0.8, sublinear_tf=True, use_idf=True)
-    train_vectors = vectorizer_one.fit_transform(train_data)
-    test_vectors = vectorizer_one.transform(test_data)
+    
+    train_vectors = vectorizer.fit_transform(train_data)
+    test_vectors = vectorizer.transform(test_data)
+
+    fvecto = open('fvecto', 'wb')
+    dump(vectorizer, fvecto)
+
     modelos = ['NaiveBayes','Svc','Knn','Tree','Mlp']
     #Vectores para el análisis:
 
@@ -231,13 +232,16 @@ def entrenar_algoritmos():
         print(confusion_matrix(test_labels, mod.predict(test_vectors)))
         predicted = cross_val_predict(mod, test_vectors, test_labels, cv=10)
         print("Cross validation %s" % accuracy_score(test_labels, predicted))
-
-def analizar_bloque_de_tweets():
+'''
+Función que analiza un bloque de Tweets. Te da a elegir entre tweets sacados directamente
+desde twitter.com o tweets de un archivo.
+'''
+def analizar_bloque_de_tweets(vectorizer):
     print("\t [1] Sacar tweets de Twitter.com")
     print("\t [2] Sacar tweets de un fichero")
     elect = input("Selecciona la opción que quieras: ")
     if elect == '1':
-        cargar_datos_de_twitter('premier league -filter:retweets AND -filter:replies',1,100)
+        cargar_datos_de_twitter('premier league -filter:retweets AND -filter:replies',1,100,vectorizer)
     elif elect == '2':
         filename = input("\tEscribe el nombre del fichero donde se encuentra el bloque de tweets: ") or 'bloque.csv'
         dataset = pd.read_csv(filename)
@@ -270,23 +274,65 @@ def analizar_bloque_de_tweets():
         cnt_location = Counter(locations['word'])
         cnt_location.most_common(3)
 
+def predecir_Naive_Bayes(test_vectors):
+    mod = MultinomialNB()
+    file = open('NaiveBayes', 'rb')
+    mod = load(file)
+    result = mod.predict(test_vectors)
+    print(result)
+    pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
+    neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
+    neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
+    y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
+    #construimos un gráfico con los datos del vector
+    plt.title("Sentiment Analysis")
+    plt.ylabel('Number of tweets')
+    plt.xticks(range(len(y)), ['positive', 'neutral', 'negative'])
+    plt.bar(range(len(y)), height=y, width = 0.75, align = 'center', alpha = 0.8)
+    plt.show()
 
+def usar_NER(tweetys, n):
+    st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
+    #acuérdate de que cambia para el mac que es donde vas a realizar la presentación
+    entities = []
 
-#def analizar_tweet_individual():
+    for r in tweetys:
+        print("está analizando(r): ", r)
+        lst_tags = st.tag(r) #no tengo que hacer el split porque ya está hecho?
+        for tup in lst_tags:
+            print("está analizando(tup): ", tup)
+            if(tup[1] != 'O'):
+                print("mete(tup) ", tup, "en las entidades")
+                entities.append(tup)
+    df_entities = pd.DataFrame(entities)
+    df_entities.columns = ["word","ner"]
+    #Organizaciones
+    organizations =df_entities[df_entities['ner'].str.contains("ORGANIZATION")]
+    cnt = Counter(organizations['word'])
+    organizaciones = cnt.most_common(n)
+    #Personas
+    person =df_entities[df_entities['ner'].str.contains("PERSON")]
+    cnt_person = Counter(person['word'])
+    personas = cnt_person.most_common(n)
+    #Localizaciones
+    locations =df_entities[df_entities['ner'].str.contains("LOCATION")]
+    cnt_location = Counter(locations['word'])
+    lugares = cnt_location.most_common(n)
+    return (organizaciones, personas, lugares)
 
-
-
+###################################################################################
+###################################################################################
 #Programa principal
 choice = mostrar_menu_principal()
 if choice == '1':
     print("\nAnalizar un bloque de tweets\n")
-    analizar_bloque_de_tweets()
+    analizar_bloque_de_tweets(vectorizer)
 elif choice == '2':
     print("\nAnalizar un tweet individual\n")
 elif choice == '3':
     os.system('cls') #limpiar la pantalla del terminal
     print("\nEntrenar algoritmos\n")
-    entrenar_algoritmos()
+    entrenar_algoritmos(vectorizer)
 elif choice == 'q':
     print("\nAdios!")
 else:
