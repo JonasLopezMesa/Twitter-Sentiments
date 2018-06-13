@@ -36,11 +36,13 @@ from nltk.corpus import stopwords
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 nltk.download('stopwords')
 nltk.download('vader_lexicon')
+#Datos para el entrenamiento
 if  path.exists('fvecto'):
     fvecto = open('fvecto', 'rb') #abre el archivo en modo lectura
     vectorizer = load(fvecto) #carga el archivo en la variable 
 else:
     vectorizer = TfidfVectorizer(min_df=5, max_df = 0.8, sublinear_tf=True, use_idf=True)
+best_model = 9
 '''
 Función que muestra el menú principal
 '''
@@ -53,6 +55,16 @@ def mostrar_menu_principal():
         print("\tLOS MODELOS ESTÁN ENTRENADOS")
     else:
         print("\tLOS MODELOS [NO] ESTÁN ENTRENADOS")
+    if best_model == 0:
+        print("\tEl mejor modelo es SVC")
+    elif best_model == 1:
+        print("\tEl mejor modelo es NB")
+    elif best_model == 2:
+        print("\tEl mejor modelo es KNN")
+    elif best_model == 3:
+        print("\tEl mejor modelo es MLP")
+    elif best_model == 9:
+        pass
     print("\t [1] Analizar un bloque de tweets")
     print("\t [2] Analizar un tweet individual")
     print("\t [3] Entrenar algoritmos")
@@ -178,11 +190,11 @@ def entrenar_algoritmos(vectorizer):
     dataset2['final'] = dataset2['digits'].apply(lambda x: [i for i in x if len(i) > 1])
     print("3. Limpieza del dataset2 realizada")
     #Aquí es el lugar donde defino el número de tweets que usaré en los modelos siempre con el porcentaje 80:20
-    train_data = dataset2['final'][0:300]
-    train_labels = dataset2['label'][0:300]
+    train_data = dataset2['final'][0:500]
+    train_labels = dataset2['label'][0:500]
 
-    test_data = dataset['final'][0:75]
-    test_labels = dataset['label'][0:75]
+    test_data = dataset['final'][0:125]
+    test_labels = dataset['label'][0:125]
 
     train_data = list(train_data.apply(' '.join))
     test_data = list(test_data.apply(' '.join))
@@ -194,38 +206,86 @@ def entrenar_algoritmos(vectorizer):
     fvecto = open('fvecto', 'wb')
     dump(vectorizer, fvecto)
 
-    modelos = ['NaiveBayes','Svc','Knn','Tree','Mlp']
+    modelos = ['NaiveBayes','Svc','Knn','Mlp']
     #Vectores para el análisis:
+    puntuaciones = [0,0,0,0]
 
+    params_svc = [['linear','poly','tbf','sigmod','precomputed'],[3,5,10],[0.1,0.5,0.9],[True,False],[True,False]]
+    best_svc = []
+    params_knn = [[1,5,10],['uniform','distance'],['ball_tree','kd_tree','brute','auto'],[5,30,100],[1,2]]
+    best_knn = []
+    params_mlp = [[50,100,150],['identity','logistic','tanh','relu'],[0.00005,0.0001,0.001],['constant','invscaling','adaptative']]
+    best_mlp = []
     #ENTRENAMIENTO DE ALGORITMOS
     for alg in modelos:
-        if alg == 'NaiveBayes':
+        if alg == 'Svc':
+            for a in params_svc[0]:
+                for b in params_svc[1]:
+                    for c in params_svc[2]:
+                        for d in params_svc[3]:
+                            for e in params_svc[4]:
+                                mod = SVC(kernel=a,degree=b,coef0=c,probability=d,shrinking=e)
+                                punt = entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                                if punt > puntuaciones[0]:
+                                    puntuaciones[0] = punt
+                                    best_svc = [a,b,c,d,e]
+        elif alg == 'NaiveBayes':
             mod = MultinomialNB()
-        elif alg == 'Svc':
-            mod = SVC()
+            puntuaciones[1] = entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
         elif alg == 'Knn':
-            mod = KNeighborsClassifier()
-        elif alg == 'Tree':
-            mod = DecisionTreeClassifier(random_state=0)
+            for a in params_knn[0]:
+                for b in params_knn[1]:
+                    for c in params_knn[2]:
+                        for d in params_knn[3]:
+                            for e in params_knn[4]:
+                                mod = KNeighborsClassifier(n_neighbors=a,weights=b,algorithm=c,leaf_size=d,p=e)
+                                punt = entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                                if punt > puntuaciones[2]:
+                                    puntuaciones[2] = punt
+                                    best_knn = [a,b,c,d,e]
         elif alg == 'Mlp':
-            mod = MLPClassifier()
-        nfile = alg
-        if path.exists(nfile):
-            file = open(nfile, 'rb') #abre el archivo en modo lectura
-            mod = load(file) #carga el archivo en la variable 
-            mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrena
-            file.close() #cierra el archivo 
-            file = open(nfile, 'wb') #abre el archivo en modo escritura
-            dump(mod, file) #actualiza el entrenamiento
-        else:
-            file = open(nfile, 'wb') #abre el archivo en modo escritura
-            mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrna
-            dump(mod, file) #guarda el entrenamiento
-        print("MODELO ", alg, " ENTRENADO Y PROBADO")
-        print(classification_report(test_labels, mod.predict(test_vectors)))
-        print(confusion_matrix(test_labels, mod.predict(test_vectors)))
-        predicted = cross_val_predict(mod, test_vectors, test_labels, cv=10)
-        print("Cross validation %s" % accuracy_score(test_labels, predicted))
+            for a in params_mlp[0]:
+                for b in params_mlp[1]:
+                    for c in params_mlp[2]:
+                        for d in params_mlp[3]:
+                            mod = MLPClassifier(hidden_layer_sizes=a,activation=b,alpha=c,learning_rate=d)
+                            punt = entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                            if punt > puntuaciones[3]:
+                                puntuaciones[3] = punt
+                                best_mlp = [a,b,c,d]
+    print(puntuaciones)
+    tmp = 0
+    guia = 0
+    for h in puntuaciones:
+        if h > tmp:
+            best_model = guia
+            tmp = h
+        guia = guia + 1
+    entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, SVC(kernel=best_svc[0],degree=best_svc[1],coef0=best_svc[2],probability=best_svc[3],shrinking=best_svc[4]))
+    entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod = MultinomialNB())
+    entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, KNeighborsClassifier(n_neighbors=best_knn[0],weights=best_knn[1],algorithm=best_knn[2],leaf_size=best_knn[3],p=best_knn[4]))
+    entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, MLPClassifier(hidden_layer_sizes=best_mlp[0],activation=best_mlp[1],alpha=best_mlp[2],learning_rate=best_mlp[3]))
+
+def entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod):
+    nfile = alg
+    if path.exists(nfile):
+        file = open(nfile, 'rb') #abre el archivo en modo lectura
+        mod = load(file) #carga el archivo en la variable 
+        mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrena
+        file.close() #cierra el archivo 
+        file = open(nfile, 'wb') #abre el archivo en modo escritura
+        dump(mod, file) #actualiza el entrenamiento
+    else:
+        file = open(nfile, 'wb') #abre el archivo en modo escritura
+        mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrna
+        dump(mod, file) #guarda el entrenamiento
+    #print("MODELO ", alg, " ENTRENADO Y PROBADO")
+    #print(classification_report(test_labels, mod.predict(test_vectors)))
+    #print(confusion_matrix(test_labels, mod.predict(test_vectors)))
+    predicted = cross_val_predict(mod, test_vectors, test_labels, cv=10)
+    print("Cross validation %s" % accuracy_score(test_labels, predicted))
+    return accuracy_score(test_labels,predicted)
+
 '''
 Función que analiza un bloque de Tweets. Te da a elegir entre tweets sacados directamente
 desde twitter.com o tweets de un archivo.
