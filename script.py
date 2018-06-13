@@ -105,28 +105,49 @@ def cargar_datos_de_twitter(consulta, iteraciones, tweet_por_iteracion, vectoriz
     df2.to_csv('export.csv')
     dataset = pd.read_csv('export.csv')
     df3 =pd.DataFrame(data=dataset['text'])
+    dfNER = pd.DataFrame(data=dataset['text'])
     tweetys = df3['text'] #para NER
     ##################################################################
-    #TOKENIZATION
-    df3['tokens'] = df3['text'].apply(TweetTokenizer().tokenize)
+    #TOKENIZATION inicial para NER
+    dfNER['tokens'] = dfNER['text'].apply(TweetTokenizer().tokenize)
     #STOPWORDS
     stopwords_vocabulary = stopwords.words('english') #estará en español?
-    df3['stopwords'] = df3['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
+    dfNER['stopwords'] = dfNER['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
     #SPECIAL CHARACTERS AND STOPWORDS REMOVAL
     punctuations = list(string.punctuation)
-    df3['punctuation'] = df3['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
-    df3['digits'] = df3['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
-    df3['final'] = df3['digits'].apply(lambda x: [i for i in x if len(i) > 1])
+    dfNER['punctuation'] = dfNER['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
+    dfNER['digits'] = dfNER['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
+    dfNER['final'] = dfNER['digits'].apply(lambda x: [i for i in x if len(i) > 1])
     
-    test_data = df3['final'][-100:] #saca sólo los últimos 100
-    anNER = df3['final'][-100:] #saca sólo los últimos 100
-    test_data = list(test_data.apply(' '.join))
-
+    #test_data = dfNER['final'][-100:] #saca sólo los últimos 100
+    anNER = dfNER['final'][-5:] #saca sólo los últimos 100
     resultadoNER = usar_NER(anNER,3)
-    print(resultadoNER)
+    for ent in resultadoNER:
+        for it in ent:
+            print(it)
+            df3 = df3[df3['text'].str.contains(it[0])]
+            #TOKENIZATION
+            df3['tokens'] = df3['text'].apply(TweetTokenizer().tokenize)
+            #STOPWORDS
+            stopwords_vocabulary = stopwords.words('english') #estará en español?
+            df3['stopwords'] = df3['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
+            #SPECIAL CHARACTERS AND STOPWORDS REMOVAL
+            punctuations = list(string.punctuation)
+            df3['punctuation'] = df3['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
+            df3['digits'] = df3['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
+            df3['final'] = df3['digits'].apply(lambda x: [i for i in x if len(i) > 1])
+            
+            test_data = df3['final'][-100:] #saca sólo los últimos 100
+            test_data = list(test_data.apply(' '.join))
+
+            test_vectors = vectorizer.transform(test_data)
+            mostrar_graph(predecir_Naive_Bayes(test_vectors, it),predecir_SVC(test_vectors, it), predecir_KNN(test_vectors, it), predecir_MLP(test_vectors, it))
+
+            df3 =pd.DataFrame(data=dataset['text'])#vuelve a recargar el df3
+
+
     
-    test_vectors = vectorizer.transform(test_data)
-    predecir_Naive_Bayes(test_vectors)
+    
 '''
 Función que recibe un dataframe con tweets de twitter y los deja preparados para
 ser analizados.
@@ -274,21 +295,75 @@ def analizar_bloque_de_tweets(vectorizer):
         cnt_location = Counter(locations['word'])
         cnt_location.most_common(3)
 
-def predecir_Naive_Bayes(test_vectors):
+def predecir_Naive_Bayes(test_vectors, it):
     mod = MultinomialNB()
     file = open('NaiveBayes', 'rb')
     mod = load(file)
     result = mod.predict(test_vectors)
-    print(result)
     pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
     neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
     neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
     y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-    #construimos un gráfico con los datos del vector
-    plt.title("Sentiment Analysis")
-    plt.ylabel('Number of tweets')
-    plt.xticks(range(len(y)), ['positive', 'neutral', 'negative'])
-    plt.bar(range(len(y)), height=y, width = 0.75, align = 'center', alpha = 0.8)
+    return (it[0],y)
+
+def predecir_SVC(test_vectors, it):
+    mod = SVC()
+    file = open('Svc', 'rb')
+    mod = load(file)
+    result = mod.predict(test_vectors)
+    pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
+    neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
+    neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
+    y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
+    return (it[0],y)
+
+def predecir_KNN(test_vectors, it):
+    mod = KNeighborsClassifier()
+    file = open('Knn', 'rb')
+    mod = load(file)
+    result = mod.predict(test_vectors)
+    pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
+    neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
+    neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
+    y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
+    return (it[0],y)
+
+def predecir_MLP(test_vectors, it):
+    mod = MLPClassifier()
+    file = open('Mlp', 'rb')
+    mod = load(file)
+    result = mod.predict(test_vectors)
+    pos = len(result[result == 4]) #guardamos la cantidad de tweets positivos
+    neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
+    neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
+    y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
+    return (it[0],y)
+
+def mostrar_graph(NB,SVC, KNN, MLP):
+    #Naive Bayes
+    plt.subplot(221)
+    plt.title("NB para la entidad " + NB[0])
+    plt.ylabel('tweets')
+    plt.xticks(range(len(NB[1])), ['positive', 'neutral', 'negative'])
+    plt.bar(range(len(NB[1])), height=NB[1], width = 0.75, align = 'center', alpha = 0.8)
+    #SVC
+    plt.subplot(222)
+    plt.title("SVC para la entidad " + SVC[0])
+    plt.ylabel('tweets')
+    plt.xticks(range(len(SVC[1])), ['positive', 'neutral', 'negative'])
+    plt.bar(range(len(SVC[1])), height=SVC[1], width = 0.75, align = 'center', alpha = 0.8)
+    #KNN
+    plt.subplot(223)
+    plt.title("KNN para la entidad " + KNN[0])
+    plt.ylabel('tweets')
+    plt.xticks(range(len(KNN[1])), ['positive', 'neutral', 'negative'])
+    plt.bar(range(len(KNN[1])), height=KNN[1], width = 0.75, align = 'center', alpha = 0.8)
+    #MLP
+    plt.subplot(224)
+    plt.title("MLP para la entidad " + MLP[0])
+    plt.ylabel('tweets')
+    plt.xticks(range(len(MLP[1])), ['positive', 'neutral', 'negative'])
+    plt.bar(range(len(MLP[1])), height=MLP[1], width = 0.75, align = 'center', alpha = 0.8)
     plt.show()
 
 def usar_NER(tweetys, n):
@@ -329,6 +404,11 @@ if choice == '1':
     analizar_bloque_de_tweets(vectorizer)
 elif choice == '2':
     print("\nAnalizar un tweet individual\n")
+    data = {'col_1': ['cabeza de toro', 'rabo de toro', 'caca de vaca', 'toro asco'],'col_2': ['misión cristiana', 'pata de toro', 'cenicienta', 'dime que si']}
+    comp = 'toro'
+    ejemplo = pd.DataFrame(data)
+    ejemplo = ejemplo[ejemplo['col_1'].str.contains(comp)]
+    print(ejemplo)
 elif choice == '3':
     os.system('cls') #limpiar la pantalla del terminal
     print("\nEntrenar algoritmos\n")
