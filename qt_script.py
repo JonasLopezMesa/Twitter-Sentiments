@@ -69,11 +69,15 @@ class Ventana(QtWidgets.QWidget):
         self.layoutWidget =QHBoxLayout()
 
         self.layoutPrincipal = QVBoxLayout()
-        self.layoutPrincipal.addLayout(self.layoutMenu,2000)
+        self.layoutPrincipal.addLayout(self.layoutMenu)
         self.layoutPrincipal.addLayout(self.layoutWidget)
 
-
         self.setLayout(self.layoutPrincipal)
+
+        self.connect(self.buttonUnTweet, QtCore.SIGNAL("clicked()"),
+                     QtWidgets.qApp, QtCore.SLOT("quit()"))
+
+    def analizarUnTweet():
 
 app = QtWidgets.QApplication(sys.argv) #variable para la interfaz
 ventana = Ventana()
