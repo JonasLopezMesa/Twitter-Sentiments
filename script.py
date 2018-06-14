@@ -418,25 +418,6 @@ def usar_NER(tweetys, n):
     else:
         return 0
 '''
-Función del programa principal
-'''
-def programa_principal(vectorizer):
-    choice = mostrar_menu_principal()
-    if choice == '1':
-        print("\nAnalizar un bloque de tweets\n")
-        analizar_bloque_de_tweets(vectorizer)
-    elif choice == '2':
-        print("\nAnalizar un tweet individual\n")
-        analizar_tweet('premier league -filter:retweets AND -filter:replies',1,1,vectorizer)
-    elif choice == '3':
-        os.system('cls') #limpiar la pantalla del terminal
-        print("\nEntrenar algoritmos\n")
-        entrenar_algoritmos(vectorizer)
-    elif choice == 'q':
-        print("\nAdios!")
-    else:
-        print("\nSelecciona una opción correcta\n")
-'''
 Función que analiza un único tweet y muestra la información.
 '''
 def analizar_tweet(consulta, iteraciones, tweet_por_iteracion, vectorizer):
@@ -530,5 +511,24 @@ def analizar_tweet(consulta, iteraciones, tweet_por_iteracion, vectorizer):
         print("\t\tNeutro")
     elif mlp[1][2] == 1:
         print("\t\tNegativo")
-
+'''
+Función del programa principal
+'''
+def programa_principal(vectorizer):
+    choice = mostrar_menu_principal()
+    if choice == '1':
+        print("\nAnalizar un bloque de tweets\n")
+        analizar_bloque_de_tweets(vectorizer)
+    elif choice == '2':
+        print("\nAnalizar un tweet individual\n")
+        analizar_tweet('premier league -filter:retweets AND -filter:replies',1,1,vectorizer)
+    elif choice == '3':
+        os.system('cls') #limpiar la pantalla del terminal
+        print("\nEntrenar algoritmos\n")
+        entrenar_algoritmos(vectorizer)
+    elif choice == 'q':
+        print("\nAdios!")
+    else:
+        print("\nSelecciona una opción correcta\n")
+        
 programa_principal(vectorizer)
