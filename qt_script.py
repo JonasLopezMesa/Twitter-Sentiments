@@ -3,7 +3,7 @@
 #LIBRERÍAS PARA QT
 import sys
 from PySide2 import QtCore, QtGui, QtWidgets
-from PySide2.QtWidgets import QApplication, QDialog, QFileDialog, QLabel, QProgressBar, QVBoxLayout, QTableWidgetItem, QHBoxLayout, QBoxLayout, QPushButton, QTableWidget
+from PySide2.QtWidgets import QApplication, QLineEdit, QDialog, QFileDialog, QLabel, QProgressBar, QVBoxLayout, QTableWidgetItem, QHBoxLayout, QBoxLayout, QPushButton, QTableWidget
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QTextTable
 ###########################################
@@ -88,6 +88,15 @@ class Ventana(QtWidgets.QWidget):
         self.progresLabel = QLabel(self)
         self.progressLayout.addWidget(self.progresLabel)
         self.progressLayout.addWidget(self.progressBarUnTweet)
+        #Variables para la selección en cargar datos de twitter
+        self.consulta = QLineEdit()
+        self.buttonConsulta = QPushButton()
+        self.consultaLayout = QHBoxLayout()
+        self.consultaLayout.addWidget(self.consulta)
+        self.consultaLayout.addWidget(self.buttonConsulta)
+        self.consultaText = ""
+        # Conectar botón de consulta
+        self.connect(self.buttonConsulta, QtCore.SIGNAL("clicked()"), self, QtCore.SLOT("guardarTexto()"))
 
         #diálogo de archivo
         self.dialogo1 = QFileDialog(self)
@@ -107,11 +116,83 @@ class Ventana(QtWidgets.QWidget):
         self.buttonUnTweet.clicked.connect(self.analizarUnTweet)
         # Conectar a entrenar_algoritmos
         self.buttonEntrenar.clicked.connect(self.entrenar_algoritmos)
+        # Conectar a cargar datos de Twitter
+        self.buttonBloqueTwitter.clicked.connect(self.cargar_datos_de_twitter)
+    def guardarTexto(self):
+        self.consultaText = self.consulta.text()
+        print(self.consultaText)
+    def guardarIteraciones(self):
+        pass
+    def guardarTweetPorIteracion(self):
+        pass
+
+
+    '''
+    Función para cargar datos de twitter directamente, lo almacena en una base de datos
+    y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.
+    Estaría bien poder pasarle a la función el número de tweets que queremos buscar 
+    por cada iteración, el número de iteraciones y la búsqueda que queremos hacer.
+    '''
+    def cargar_datos_de_twitter(self):
+        self.layoutWidget.addLayout(self.consultaLayout)
+        #tweetPorIteracion = 
+        #iteraciones =
+        #Claves y tokens de la cuenta de twitter
+        consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
+        consumer_secret='6alIXTKSxf0RE57QK3fDQ8dxdvlsVr1IRsHDZmoSlMx96YKBFD'
+        access_token='966591013182722049-BVXW14Hf5s6O2oIwS3vtJ3S3dOsKLbY'
+        access_token_secret='829DTKPjmwsSytmp1ky9fMCJkjV0LZ04TbL9oqHGV6cDm'
+        #parámetros de la consulta
+        q = 'premier league -filter:retweets AND -filter:replies'
+        url = 'https://api.Twitter.com/1.1/search/tweets.json'
+        pms = {'q' : q, 'count' : 100, 'lang' : 'en', 'result_type': 'recent'} 
+        auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
+        #inicialización de la base de datos para cargar los datos
+        database_name = "baseDeDatos"
+        collection_name = "coleccion"
+        client = MongoClient('mongodb://localhost:27017/')
+        db = client[database_name]
+        collection = db[collection_name]
+        #Paginación (carga de 100 en 100 datos)
+        pages_counter = 0
+        number_of_pages = 1
+        while pages_counter < number_of_pages:
+            pages_counter += 1
+            res = requests.get(url, params = pms, auth=auth)
+            print("Connection status: %s" % res.reason)
+            tweets = res.json()
+            ids = [i['id'] for i in tweets['statuses']]
+            pms['max_id'] = min(ids) - 1
+            collection.insert_many(tweets['statuses'])
+        #Pasar de la base de datos a un dataframe
+        ##################################################################
+        documents = []
+        for doc in collection.find():
+            documents.append(doc)
+        df = pd.DataFrame(documents)
+        #Limpieza de datos
+        df = self.limpieza_de_datos_de_twitter(df)
+        df2 = pd.DataFrame(data=df['text'][-100:])
+        dfNER = pd.DataFrame(data=df['text'])
+        dfNER = self.tokenizar(dfNER)
+        anNER = dfNER['final'][-5:] #saca sólo los últimos 5
+        resultadoNER = self.usar_NER(anNER,3)
+        for ent in resultadoNER:
+            for it in ent:
+                print(it)
+                df2 = df2[df2['text'].str.contains(it[0])]
+                df2 = self.tokenizar(df2)
+                test_data = df2['final'][-100:] #saca sólo los últimos 100
+                test_data = list(test_data.apply(' '.join))
+                test_vectors = self.vectorizer.transform(test_data)
+                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it),self.predecir_SVC(test_vectors, it), self.predecir_KNN(test_vectors, it), self.predecir_MLP(test_vectors, it))
+                df2 = pd.DataFrame(data=df['text'])#vuelve a recargar el df3
+
 
     def analizarUnTweet(self):
         #self.layoutWidget.insertLayout(2,self.infoLayout)
         #Barra de progreso
-        self.infoLayout.show()
+        #self.infoLayout.show()
         self.progressBarUnTweet.reset()
         self.progressBarUnTweet.setMaximum(10)
         self.progressBarUnTweet.setMinimum(0)
@@ -371,6 +452,32 @@ class Ventana(QtWidgets.QWidget):
         plt.xticks(range(len(MLP[1])), ['positive', 'neutral', 'negative'])
         plt.bar(range(len(MLP[1])), height=MLP[1], width = 0.75, align = 'center', alpha = 0.8)
         plt.show()
+    def mostrar_graph(self, NB,SVC, KNN, MLP):
+        #Naive Bayes
+        plt.subplot(221)
+        plt.title("NB para la entidad " + NB[0])
+        plt.ylabel('tweets')
+        plt.xticks(range(len(NB[1])), ['positive', 'neutral', 'negative'])
+        plt.bar(range(len(NB[1])), height=NB[1], width = 0.75, align = 'center', alpha = 0.8)
+        #SVC
+        plt.subplot(222)
+        plt.title("SVC para la entidad " + SVC[0])
+        plt.ylabel('tweets')
+        plt.xticks(range(len(SVC[1])), ['positive', 'neutral', 'negative'])
+        plt.bar(range(len(SVC[1])), height=SVC[1], width = 0.75, align = 'center', alpha = 0.8)
+        #KNN
+        plt.subplot(223)
+        plt.title("KNN para la entidad " + KNN[0])
+        plt.ylabel('tweets')
+        plt.xticks(range(len(KNN[1])), ['positive', 'neutral', 'negative'])
+        plt.bar(range(len(KNN[1])), height=KNN[1], width = 0.75, align = 'center', alpha = 0.8)
+        #MLP
+        plt.subplot(224)
+        plt.title("MLP para la entidad " + MLP[0])
+        plt.ylabel('tweets')
+        plt.xticks(range(len(MLP[1])), ['positive', 'neutral', 'negative'])
+        plt.bar(range(len(MLP[1])), height=MLP[1], width = 0.75, align = 'center', alpha = 0.8)
+        plt.show()
     '''
     Función que utiliza NER para detectar entidades.
     '''
@@ -411,7 +518,7 @@ class Ventana(QtWidgets.QWidget):
     y de test. En la misma función se limpian los datos tokenizados.
     '''
     def entrenar_algoritmos(self):
-        self.infoLayout.hide()
+        #self.infoLayout.hide()
         self.progressBarUnTweet.reset()
         self.progressBarUnTweet.setMaximum(438)
         self.progressBarUnTweet.setMinimum(0)
