@@ -3,7 +3,7 @@
 #LIBRERÍAS PARA QT
 import sys
 from PySide2 import QtCore, QtGui, QtWidgets
-from PySide2.QtWidgets import QApplication, QLineEdit, QDialog, QFileDialog, QLabel, QProgressBar, QVBoxLayout, QTableWidgetItem, QHBoxLayout, QBoxLayout, QPushButton, QTableWidget
+from PySide2.QtWidgets import QApplication, QLineEdit, QInputDialog, QFileDialog, QLabel, QProgressBar, QVBoxLayout, QTableWidgetItem, QHBoxLayout, QBoxLayout, QPushButton, QTableWidget
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QTextTable
 ###########################################
@@ -95,6 +95,7 @@ class Ventana(QtWidgets.QWidget):
         self.consultaLayout.addWidget(self.consulta)
         self.consultaLayout.addWidget(self.buttonConsulta)
         self.consultaText = ""
+        self.consultaTweet = 0
         # Conectar botón de consulta
         self.connect(self.buttonConsulta, QtCore.SIGNAL("clicked()"), self, QtCore.SLOT("guardarTexto()"))
 
@@ -110,6 +111,10 @@ class Ventana(QtWidgets.QWidget):
 
         self.setLayout(self.layoutPrincipal)
 
+
+        #Diálogo para configurar parámetros de bloque de Twitter
+        self.dialogConsulta = QInputDialog(self)
+        self.dialogTweets = QInputDialog(self)
         
 
         # Conectar a analizarUnTweet:
@@ -117,14 +122,15 @@ class Ventana(QtWidgets.QWidget):
         # Conectar a entrenar_algoritmos
         self.buttonEntrenar.clicked.connect(self.entrenar_algoritmos)
         # Conectar a cargar datos de Twitter
-        self.buttonBloqueTwitter.clicked.connect(self.cargar_datos_de_twitter)
-    def guardarTexto(self):
-        self.consultaText = self.consulta.text()
-        print(self.consultaText)
-    def guardarIteraciones(self):
-        pass
-    def guardarTweetPorIteracion(self):
-        pass
+        self.buttonBloqueTwitter.clicked.connect(self.cuadroDialogo)
+
+    def cuadroDialogo(self):
+        self.consultaText = self.dialogConsulta.getText(self,"Consulta de Twitter", "¿Sobre qué quieres buscar?")
+        print(self.consultaText[0])
+        self.consultaTweets = self.dialogTweets.getInt(self,"Cuántos twits quieres usar","La cantidad se multiplica por 100")
+        print(self.consultaTweet)
+        self.cargar_datos_de_twitter()
+
 
 
     '''
@@ -134,16 +140,12 @@ class Ventana(QtWidgets.QWidget):
     por cada iteración, el número de iteraciones y la búsqueda que queremos hacer.
     '''
     def cargar_datos_de_twitter(self):
-        self.layoutWidget.addLayout(self.consultaLayout)
-        #tweetPorIteracion = 
-        #iteraciones =
-        #Claves y tokens de la cuenta de twitter
         consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
         consumer_secret='6alIXTKSxf0RE57QK3fDQ8dxdvlsVr1IRsHDZmoSlMx96YKBFD'
         access_token='966591013182722049-BVXW14Hf5s6O2oIwS3vtJ3S3dOsKLbY'
         access_token_secret='829DTKPjmwsSytmp1ky9fMCJkjV0LZ04TbL9oqHGV6cDm'
         #parámetros de la consulta
-        q = 'premier league -filter:retweets AND -filter:replies'
+        q = self.consultaText[0] + ' -filter:retweets AND -filter:replies'
         url = 'https://api.Twitter.com/1.1/search/tweets.json'
         pms = {'q' : q, 'count' : 100, 'lang' : 'en', 'result_type': 'recent'} 
         auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
@@ -155,7 +157,7 @@ class Ventana(QtWidgets.QWidget):
         collection = db[collection_name]
         #Paginación (carga de 100 en 100 datos)
         pages_counter = 0
-        number_of_pages = 1
+        number_of_pages = self.consultaTweet
         while pages_counter < number_of_pages:
             pages_counter += 1
             res = requests.get(url, params = pms, auth=auth)
