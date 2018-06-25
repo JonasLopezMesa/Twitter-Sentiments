@@ -501,7 +501,8 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.setMaximum(len(tweetys)*10)
         self.progressBarUnTweet.setMinimum(0)
         self.progresLabel.setText("ANALIZANDO ENTIDADES")
-        st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
+        #st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
+        st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
         #acuérdate de que cambia para el mac que es donde vas a realizar la presentación
         entities = []
         tindice = 0
