@@ -543,11 +543,9 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.reset()
         self.progressBarUnTweet.setMaximum(438)
         self.progressBarUnTweet.setMinimum(0)
-        #filename2 = input("\tEscribe el nombre del fichero de entrenamiento: ") or 'prueba.csv'
         filename2 = self.dialogo1.getOpenFileName(self, "Selecciona el fichero de entrenamiento","/")
         filename2 = filename2[0].split("/")
         filename2 = filename2[-1]
-        #filename = input("\tEscribe el nombre del fichero de pruebas (test): ") or 'testdata.manual.2009.06.14.csv'
         filename = self.dialogo1.getOpenFileName(self, "Selecciona el fichero de pruebas", "/")
         filename = filename[0].split("/")
         filename = filename[-1]
@@ -556,11 +554,11 @@ class Ventana(QtWidgets.QWidget):
         prueba = pd.read_csv(filename) #para la última parte del NER combinado
         dataset2 = pd.read_csv(filename2)
         print("1. Carga de archivos realizada")
-        #LIMPIEZA DE DATOS DE DATASET
+        #CLEANING DATASET
         #TOKENIZATION
         dataset['tokens'] = dataset['text'].apply(TweetTokenizer().tokenize)
         #STOPWORDS
-        stopwords_vocabulary = stopwords.words('english') #estará en español?
+        stopwords_vocabulary = stopwords.words('english')
         dataset['stopwords'] = dataset['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
         #SPECIAL CHARACTERS AND STOPWORDS REMOVAL
         punctuations = list(string.punctuation)
@@ -570,7 +568,7 @@ class Ventana(QtWidgets.QWidget):
         print("2. Limpieza del dataset realizada")
         self.progressBarUnTweet.setValue(1)
         self.progresLabel.setText("Limpiando datos fichero entrenamiento")
-        #LIMPIEZA DE DATOS DE DATASET2
+        #CLEANING DATASET2
         #TOKENIZATION
         dataset2['tokens'] = dataset2['text'].apply(TweetTokenizer().tokenize)
         #STOPWORDS
@@ -584,7 +582,7 @@ class Ventana(QtWidgets.QWidget):
         print("3. Limpieza del dataset2 realizada")
         self.progressBarUnTweet.setValue(2)
         self.progresLabel.setText("Limpiando datos fichero de pruebas")
-        #Aquí es el lugar donde defino el número de tweets que usaré en los modelos siempre con el porcentaje 80:20
+        #Here is the place where we set the number of tweets that we use to models. Always whit 80:20 percent.
         train_data = dataset2['final'][0:500]
         train_labels = dataset2['label'][0:500]
 
@@ -595,7 +593,7 @@ class Ventana(QtWidgets.QWidget):
         test_data = list(test_data.apply(' '.join))
         self.progressBarUnTweet.setValue(3)
         self.progresLabel.setText("Actualizando datos de entrenamiento")
-        #Preparar datos para los modelos
+        #Preparing data for models
         
         train_vectors = self.vectorizer.fit_transform(train_data)
         test_vectors = self.vectorizer.transform(test_data)
@@ -604,7 +602,7 @@ class Ventana(QtWidgets.QWidget):
         dump(self.vectorizer, fvecto)
 
         modelos = ['NaiveBayes','Svc','Knn','Mlp']
-        #Vectores para el análisis:
+        #Analisys vectors:
         puntuaciones = [0,0,0,0]
 
         params_svc = [['linear','poly','tbf','sigmod','precomputed'],[3,5,10],[0.1,0.5,0.9],[True,False],[True,False]]
@@ -616,7 +614,7 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.setValue(4)
         self.progresLabel.setText("Preparando parámetros de algoritmos")
         print("LLEGA HASTA AQUÍ")
-        #ENTRENAMIENTO DE ALGORITMOS
+        #TRAINING ALGORITHMs
         progreso = 5
         for alg in modelos:
             if alg == 'Svc':
@@ -666,7 +664,10 @@ class Ventana(QtWidgets.QWidget):
                                 if punt > puntuaciones[3]:
                                     puntuaciones[3] = punt
                                     best_mlp = [a,b,c,d]
-        print(puntuaciones)
+        print("PUNTUACIONES: ",puntuaciones)
+        print("BEST SVC", best_svc)
+        print("BEST MLP", best_mlp)
+        print("BEST KNN", best_knn)
         tmp = 0
         guia = 0
         for h in puntuaciones:
@@ -676,10 +677,14 @@ class Ventana(QtWidgets.QWidget):
             guia = guia + 1
         self.progressBarUnTweet.setValue(progreso)
         progreso = progreso + 1
-        self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, SVC(kernel=best_svc[0],degree=best_svc[1],coef0=best_svc[2],probability=best_svc[3],shrinking=best_svc[4]))
-        self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod = MultinomialNB())
-        self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, KNeighborsClassifier(n_neighbors=best_knn[0],weights=best_knn[1],algorithm=best_knn[2],leaf_size=best_knn[3],p=best_knn[4]))
-        self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, MLPClassifier(hidden_layer_sizes=best_mlp[0],activation=best_mlp[1],alpha=best_mlp[2],learning_rate=best_mlp[3]))
+        self.entrenar('Svc',train_vectors,train_labels,test_vectors, test_labels, SVC(kernel=best_svc[0],degree=best_svc[1],coef0=best_svc[2],probability=best_svc[3],shrinking=best_svc[4]))
+        print("1")
+        self.entrenar('NaiveBayes',train_vectors,train_labels,test_vectors, test_labels, mod = MultinomialNB())
+        print("2")
+        self.entrenar('Knn',train_vectors,train_labels,test_vectors, test_labels, KNeighborsClassifier(n_neighbors=best_knn[0],weights=best_knn[1],algorithm=best_knn[2],leaf_size=best_knn[3],p=best_knn[4]))
+        print("3")
+        self.entrenar('Mlp',train_vectors,train_labels,test_vectors, test_labels, MLPClassifier(hidden_layer_sizes=best_mlp[0],activation=best_mlp[1],alpha=best_mlp[2],learning_rate=best_mlp[3]))
+        print("4")
         self.progressBarUnTweet.setValue(progreso)
         self.progresLabel.setText("FINALIZADO")
         self.entrenamientoLabel.setText("<h1>ENTRENAMIENTO REALIZADO CON ÉXITO</h1>")
@@ -699,9 +704,9 @@ class Ventana(QtWidgets.QWidget):
             file = open(nfile, 'wb') #abre el archivo en modo escritura
             mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrna
             dump(mod, file) #guarda el entrenamiento
-        #print("MODELO ", alg, " ENTRENADO Y PROBADO")
-        #print(classification_report(test_labels, mod.predict(test_vectors)))
-        #print(confusion_matrix(test_labels, mod.predict(test_vectors)))
+        print("MODELO ", alg, " ENTRENADO Y PROBADO")
+        print(classification_report(test_labels, mod.predict(test_vectors)))
+        print(confusion_matrix(test_labels, mod.predict(test_vectors)))
         predicted = cross_val_predict(mod, test_vectors, test_labels, cv=10)
         print("Cross validation %s" % accuracy_score(test_labels, predicted))
         return accuracy_score(test_labels,predicted)
