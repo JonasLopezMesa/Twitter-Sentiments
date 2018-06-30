@@ -79,6 +79,9 @@ class Ventana(QtWidgets.QWidget):
         self.progresLabel = QLabel(self)
         self.progressLayout.addWidget(self.progresLabel)
         self.progressLayout.addWidget(self.progressBarUnTweet)
+        #Elementos para NER
+        self.nerLayout = QVBoxLayout()
+        self.layoutWidget.addLayout(self.nerLayout)
         #Variables para la selección en cargar datos de twitter
         self.consultaText = ""
         self.consultaTweet = 0
@@ -119,6 +122,24 @@ class Ventana(QtWidgets.QWidget):
         self.nerCantidadValor = self.nerCantidad.getInt(self,"Cuántos twits quieres usar en NER","Tweets que se usarán para NER")
         self.cargar_datos_de_twitter()
     '''Función para cargar datos de twitter directamente, lo almacena en una base de datos y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.'''
+    def mostrarUnGraph(self, entidad, dataframe):
+        dataframe = dataframe[dataframe['text'].str.contains(entidad)]
+        dataframe = self.tokenizar(dataframe)
+        test_data = dataframe['final'][-100:] #saca sólo los últimos 100
+        test_data = list(test_data.apply(' '.join))
+        test_vectors = self.vectorizer.transform(test_data)
+        self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, entidad),self.predecir_SVC(test_vectors, entidad), self.predecir_KNN(test_vectors, entidad), self.predecir_MLP(test_vectors, entidad))
+
+    def buttonsNER(self, resultadoNER, df2):
+        botones = []
+        ind = 0
+        for i in resultadoNER:
+            for j in i:
+                botones.append(QPushButton(j[0], self))
+                ind = ind + 1
+        for r in botones:
+            self.nerLayout.addWidget(r)
+            r.clicked.connect(self.mostrarUnGraph(j[0], df2))
     def cargar_datos_de_twitter(self):
         self.limpiarLayout(self.infoLayout)
         consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
@@ -157,6 +178,8 @@ class Ventana(QtWidgets.QWidget):
         dfNER = self.tokenizar(dfNER)
         anNER = dfNER['final'][-self.nerCantidadValor[0]:] #saca sólo los últimos 5
         resultadoNER = self.usar_NER(anNER,3)
+        self.buttonsNER(resultadoNER, df2)
+        '''
         for ent in resultadoNER:
             PySide2.QtWidgets.QApplication.processEvents()
             for it in ent:
@@ -166,9 +189,10 @@ class Ventana(QtWidgets.QWidget):
                 test_data = df2['final'][-100:] #saca sólo los últimos 100
                 test_data = list(test_data.apply(' '.join))
                 test_vectors = self.vectorizer.transform(test_data)
-                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it),self.predecir_SVC(test_vectors, it), self.predecir_KNN(test_vectors, it), self.predecir_MLP(test_vectors, it))
+                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it[0]),self.predecir_SVC(test_vectors, it[0]), self.predecir_KNN(test_vectors, it[0]), self.predecir_MLP(test_vectors, it[0]))
                 df2 = pd.DataFrame(data=df['text'])#vuelve a recargar el df3
-        self.progresLabel.setText("FINALIZADO")
+                '''
+        #self.progresLabel.setText("FINALIZADO")
     '''Función que analiza twits sacados de un archivo a elegir por el usuario'''
     def analizarDeArchivo(self):
         filename = self.dialogo1.getOpenFileName(self, "Selecciona el fichero a analizar","/")
@@ -202,7 +226,7 @@ class Ventana(QtWidgets.QWidget):
                 test_data = df3['final'][-100:] #saca sólo los últimos 100
                 test_data = list(test_data.apply(' '.join))
                 test_vectors = self.vectorizer.transform(test_data)
-                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it),self.predecir_SVC(test_vectors, it), self.predecir_KNN(test_vectors, it), self.predecir_MLP(test_vectors, it))
+                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it[0]),self.predecir_SVC(test_vectors, it[0]), self.predecir_KNN(test_vectors, it[0]), self.predecir_MLP(test_vectors, it[0]))
                 df3 =pd.DataFrame(data=dataset['text'])#vuelve a recargar el df3
         self.progressBarUnTweet.setValue(100)
         self.progresLabel.setText("FINALIZADO")
@@ -367,7 +391,7 @@ class Ventana(QtWidgets.QWidget):
         neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
         neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
         y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-        return (it[0],y)
+        return (it,y)
     def predecir_SVC(self, test_vectors, it):
         mod = SVC()
         file = open('Svc', 'rb')
@@ -377,7 +401,7 @@ class Ventana(QtWidgets.QWidget):
         neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
         neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
         y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-        return (it[0],y)
+        return (it,y)
     def predecir_KNN(self, test_vectors, it):
         mod = KNeighborsClassifier()
         file = open('Knn', 'rb')
@@ -387,7 +411,7 @@ class Ventana(QtWidgets.QWidget):
         neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
         neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
         y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-        return (it[0],y)
+        return (it,y)
     def predecir_MLP(self, test_vectors, it):
         mod = MLPClassifier()
         file = open('Mlp', 'rb')
@@ -397,7 +421,7 @@ class Ventana(QtWidgets.QWidget):
         neg = len(result[result == 0]) #guardamos la cantidad de tweets negativos
         neu = len(result[result == 2]) #guardamos la cantidad de tweets neutros
         y = [pos, neu, neg] # vector de la cantidad de tweets positivos, negativos y neutros
-        return (it[0],y)
+        return (it,y)
     '''Función que muestra los gráficos utilizando los plots de python'''
     def mostrar_graph(self, NB,SVC, KNN, MLP):
         #Naive Bayes
