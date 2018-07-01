@@ -108,6 +108,15 @@ class Ventana(QtWidgets.QWidget):
         self.buttonBloqueTwitter.clicked.connect(self.cuadroDialogo)
         # Conectar a cargar datos de archivo
         self.buttonBloqueFile.clicked.connect(self.analizarDeArchivo)
+    '''Reinicia el estado de la barra de estado'''
+    def reiniciarEstado(self,maximo):
+        self.progressBarUnTweet.reset()
+        self.progressBarUnTweet.setMaximum(maximo)
+        self.progressBarUnTweet.setMinimum(0)
+    '''Actualiza el estado de la barra de estado y de la etiqueta de estado'''
+    def actualizarEstado(self, porcentaje, etiqueta):
+        self.progressBarUnTweet.setValue(porcentaje)
+        self.progresLabel.setText(etiqueta)
     '''Función que oculta todos los widgets que hay en el layout que se le pasa por parámetro'''
     def limpiarLayout(self,layout):
         for i in reversed(range(layout.count())): 
@@ -191,51 +200,31 @@ class Ventana(QtWidgets.QWidget):
         anNER = dfNER['final'][-self.nerCantidadValor[0]:] #saca sólo los últimos 5
         resultadoNER = self.usar_NER(anNER,3)
         self.buttonsNER(resultadoNER, df2)
-        self.progresLabel.setText("FINALIZADO")
     '''Función que analiza twits sacados de un archivo a elegir por el usuario'''
     def analizarDeArchivo(self):
         filename = self.dialogo1.getOpenFileName(self, "Selecciona el fichero a analizar","/")
         filename = filename[0].split("/")
         filename = filename[-1]
         self.nerCantidadValor = self.nerCantidad.getInt(self,"Cuántos twits quieres usar en NER","Tweets que se usarán para NER")
-        self.progressBarUnTweet.reset()
-        self.progressBarUnTweet.setMaximum(100)
-        self.progressBarUnTweet.setMinimum(0)
+        self.reiniciarEstado(100)
         #filename = input("\tEscribe el nombre del fichero donde se encuentra el bloque de tweets: ") or 'bloque.csv'
         dataset = pd.read_csv(filename)
         df3 =pd.DataFrame(data=dataset['text'])
         dfNER = pd.DataFrame(data=dataset['text'])
-        self.progressBarUnTweet.setValue(20)
-        self.progresLabel.setText("Tokenizando")
+        self.actualizarEstado(20, "Tokenizando")
         dfNER = self.tokenizar(dfNER)
         anNER = dfNER['final'][-self.nerCantidadValor[0]:]
-        self.progressBarUnTweet.setValue(30)
+        self.actualizarEstado(30, "Analizando NER")
         resultadoNER = self.usar_NER(anNER,3)
-        self.progressBarUnTweet.reset()
-        self.progressBarUnTweet.setMaximum(100)
-        self.progressBarUnTweet.setMinimum(0)
-        self.progressBarUnTweet.setValue(90)
-        self.progresLabel.setText("Dibujando gráficos")
-        for ent in resultadoNER:
-            PySide2.QtWidgets.QApplication.processEvents()
-            for it in ent:
-                PySide2.QtWidgets.QApplication.processEvents()
-                df3 = df3[df3['text'].str.contains(it[0])]
-                df3 = self.tokenizar(df3)
-                test_data = df3['final'][-100:] #saca sólo los últimos 100
-                test_data = list(test_data.apply(' '.join))
-                test_vectors = self.vectorizer.transform(test_data)
-                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it[0]),self.predecir_SVC(test_vectors, it[0]), self.predecir_KNN(test_vectors, it[0]), self.predecir_MLP(test_vectors, it[0]))
-                df3 =pd.DataFrame(data=dataset['text'])#vuelve a recargar el df3
-        self.progressBarUnTweet.setValue(100)
-        self.progresLabel.setText("FINALIZADO")
+        self.reiniciarEstado(100)
+        self.actualizarEstado(90, "Distribuyendo botones NER")
+        self.buttonsNER(resultadoNER, df3)
+        self.actualizarEstado(100, "FINALIZADO")
     '''Función que analiza un tweet individual sacado de twitter.com'''
     def analizarUnTweet(self):
         #Barra de progreso
         self.consultaText = self.dialogConsulta.getText(self,"Consulta de Twitter", "¿Sobre qué quieres buscar?")
-        self.progressBarUnTweet.reset()
-        self.progressBarUnTweet.setMaximum(10)
-        self.progressBarUnTweet.setMinimum(0)
+        self.reiniciarEstado(10)
         #self.layoutProgressBar.addWidget(self.progressBarUnTweet)
         datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
         self.progressBarUnTweet.setValue(2)
@@ -425,10 +414,8 @@ class Ventana(QtWidgets.QWidget):
         plt.show()
     '''Función que utiliza NER para detectar entidades.'''
     def usar_NER(self, tweetys, n): 
-        self.progressBarUnTweet.reset()
-        self.progressBarUnTweet.setMaximum(len(tweetys)*10)
-        self.progressBarUnTweet.setMinimum(0)
-        self.progresLabel.setText("ANALIZANDO ENTIDADES")
+        self.reiniciarEstado(len(tweetys)*10)
+        self.actualizarEstado(1, "ANALIZANDO ENTIDADES: ")
         st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
         #st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
         #Recuerda de que cambia para el mac que es donde vas a realizar la presentación
@@ -438,12 +425,13 @@ class Ventana(QtWidgets.QWidget):
             PySide2.QtWidgets.QApplication.processEvents()
             lst_tags = st.tag(r) #no tengo que hacer el split porque ya está hecho?
             for tup in lst_tags:
-                self.progressBarUnTweet.setValue(tindice)
+                PySide2.QtWidgets.QApplication.processEvents()
+                self.actualizarEstado(tindice, "ANALIZANDO ENTIDADES EN: " + str(r))
                 tindice = tindice + 1
                 if(tup[1] != 'O'):
                     entities.append(tup)
         df_entities = pd.DataFrame(entities)
-        self.progressBarUnTweet.setValue(len(tweetys)*10)
+        self.actualizarEstado(len(tweetys)*10, "FINALIZADO")
         if df_entities.size >0:
             df_entities.columns = ["word","ner"]
             #Organizaciones
@@ -464,9 +452,7 @@ class Ventana(QtWidgets.QWidget):
     '''Función que entrena todos los algoritmos utilizando datos de ficheros de entrenamiento y de test. En la misma función se limpian los datos tokenizados. Al final detecta cuál es la mejor configuración para el algoritmo y los entrena con dicha configuración'''
     def entrenar_algoritmos(self):
         #self.infoLayout.hide()
-        self.progressBarUnTweet.reset()
-        self.progressBarUnTweet.setMaximum(438)
-        self.progressBarUnTweet.setMinimum(0)
+        self.reiniciarEstado(438)
         filename2 = self.dialogo1.getOpenFileName(self, "Selecciona el fichero de entrenamiento","/")
         filename2 = filename2[0].split("/")
         filename2 = filename2[-1]
