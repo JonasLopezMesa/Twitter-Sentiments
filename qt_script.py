@@ -85,7 +85,7 @@ class Ventana(QtWidgets.QWidget):
         self.botones = []
         #Variables para la selección en cargar datos de twitter
         self.consultaText = ""
-        self.consultaTweet = 0
+        self.consultaTweets = 0
         self.nerCantidadValor = 0
         #diálogo de archivo
         self.dialogo1 = QFileDialog(self)
@@ -152,26 +152,29 @@ class Ventana(QtWidgets.QWidget):
         pms = {'q' : q, 'count' : 100, 'lang' : 'en', 'result_type': 'recent'} 
         auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
         return {'auth': auth, 'pms': pms, 'url': url}
-    '''Función para cargar datos de twitter directamente, lo almacena en una base de datos y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.'''
-    def cargar_datos_de_twitter(self):
-        self.limpiarLayout(self.infoLayout)
-        datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
+    def paginacionMongo(self, url, pms, auth, nombre, colection, cliente, paginas):
         #inicialización de la base de datos para cargar los datos
-        database_name = "baseDeDatos"
-        collection_name = "coleccion"
-        client = MongoClient('mongodb://localhost:27017/')
+        database_name = nombre
+        collection_name = colection
+        client = MongoClient(cliente)
         db = client[database_name]
         collection = db[collection_name]
         #Paginación (carga de 100 en 100 datos)
         pages_counter = 0
-        number_of_pages = self.consultaTweets[0]
+        number_of_pages = paginas
         while pages_counter < number_of_pages:
             pages_counter += 1
-            res = requests.get(datosAPI['url'], params = datosAPI['pms'], auth = datosAPI['auth'])
+            res = requests.get(url, params = pms, auth = auth)
             tweets = res.json()
             ids = [i['id'] for i in tweets['statuses']]
-            datosAPI['pms']['max_id'] = min(ids) - 1
+            pms['max_id'] = min(ids) - 1
             collection.insert_many(tweets['statuses'])
+        return collection
+    '''Función para cargar datos de twitter directamente, lo almacena en una base de datos y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.'''
+    def cargar_datos_de_twitter(self):
+        self.limpiarLayout(self.infoLayout)
+        datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
+        collection = self.paginacionMongo(datosAPI['url'], datosAPI['pms'], datosAPI['auth'],"baseDeDatos","coleccion",'mongodb://localhost:27017/',self.consultaTweets[0])
         #Pasar de la base de datos a un dataframe
         documents = []
         for doc in collection.find():
@@ -245,24 +248,9 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.setMinimum(0)
         #self.layoutProgressBar.addWidget(self.progressBarUnTweet)
         datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
-        #inicialización de la base de datos para cargar los datos
-        database_name = "baseDeDatos"
-        collection_name = "coleccion"
-        client = MongoClient('mongodb://localhost:27017/')
-        db = client[database_name]
-        collection = db[collection_name]
         self.progressBarUnTweet.setValue(2)
         self.progresLabel.setText("Iniciando base de datos")
-        #Paginación (carga de 100 en 100 datos)
-        pages_counter = 0
-        number_of_pages = 1 #Número de veces que cuenta
-        while pages_counter < number_of_pages:
-            pages_counter += 1
-            res = requests.get(datosAPI['url'], params = datosAPI['pms'], auth = datosAPI['auth'])
-            tweets = res.json()
-            ids = [i['id'] for i in tweets['statuses']]
-            datosAPI['pms']['max_id'] = min(ids) - 1
-            collection.insert_many(tweets['statuses'])
+        collection = self.paginacionMongo(datosAPI['url'], datosAPI['pms'], datosAPI['auth'],"baseDeDatos","coleccion",'mongodb://localhost:27017/',1)
         self.progressBarUnTweet.setValue(3)
         self.progresLabel.setText("Guardando tweets en base de datos")
         #Pasar de la base de datos a un dataframe
