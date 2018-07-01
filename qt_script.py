@@ -180,31 +180,18 @@ class Ventana(QtWidgets.QWidget):
         collection = self.paginacionMongo(datosAPI['url'], datosAPI['pms'], datosAPI['auth'],"baseDeDatos","coleccion",'mongodb://localhost:27017/',self.consultaTweets[0])
         #Pasar de la base de datos a un dataframe
         documents = []
-        for doc in collection.find():
+        for doc in collection.find().skip(collection.count() - self.consultaTweets[0]*100):
             documents.append(doc)
         df = pd.DataFrame(documents)
         #Limpieza de datos
         df = self.limpieza_de_datos_de_twitter(df)
-        df2 = pd.DataFrame(data=df['text'][-100:])
+        df2 = pd.DataFrame(data=df['text'][-self.consultaTweets[0]*100:])
         dfNER = pd.DataFrame(data=df['text'])
         dfNER = self.tokenizar(dfNER)
         anNER = dfNER['final'][-self.nerCantidadValor[0]:] #saca sólo los últimos 5
         resultadoNER = self.usar_NER(anNER,3)
         self.buttonsNER(resultadoNER, df2)
-        '''
-        for ent in resultadoNER:
-            PySide2.QtWidgets.QApplication.processEvents()
-            for it in ent:
-                PySide2.QtWidgets.QApplication.processEvents()
-                df2 = df2[df2['text'].str.contains(it[0])]
-                df2 = self.tokenizar(df2)
-                test_data = df2['final'][-100:] #saca sólo los últimos 100
-                test_data = list(test_data.apply(' '.join))
-                test_vectors = self.vectorizer.transform(test_data)
-                self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, it[0]),self.predecir_SVC(test_vectors, it[0]), self.predecir_KNN(test_vectors, it[0]), self.predecir_MLP(test_vectors, it[0]))
-                df2 = pd.DataFrame(data=df['text'])#vuelve a recargar el df3
-                '''
-        #self.progresLabel.setText("FINALIZADO")
+        self.progresLabel.setText("FINALIZADO")
     '''Función que analiza twits sacados de un archivo a elegir por el usuario'''
     def analizarDeArchivo(self):
         filename = self.dialogo1.getOpenFileName(self, "Selecciona el fichero a analizar","/")
@@ -258,7 +245,7 @@ class Ventana(QtWidgets.QWidget):
         self.progresLabel.setText("Guardando tweets en base de datos")
         #Pasar de la base de datos a un dataframe
         documents = []
-        for doc in collection.find():
+        for doc in collection.find().skip(collection.count() - 10):
             documents.append(doc)
         df = pd.DataFrame(documents)
         mostrar = pd.DataFrame(documents)
