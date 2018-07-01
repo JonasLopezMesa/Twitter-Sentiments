@@ -123,24 +123,26 @@ class Ventana(QtWidgets.QWidget):
         self.nerCantidadValor = self.nerCantidad.getInt(self,"Cuántos twits quieres usar en NER","Tweets que se usarán para NER")
         self.cargar_datos_de_twitter()
     '''Función que muestra un gráfico con los datos pasados por parámetros'''
-    def mostrarUnGraph(self, entidad, dataframe):
-        dataframe = dataframe[dataframe['text'].str.contains(entidad)]
+    def mostrarUnGraph(self, entidad, dataframe, estado):
+        if estado == 2:
+            dataframe = dataframe[dataframe['text'].str.contains(entidad)]
         dataframe = self.tokenizar(dataframe)
-        test_data = dataframe['final'][-100:] #saca sólo los últimos 100
+        test_data = dataframe['final'][-dataframe.size:] #saca sólo los últimos 100
         test_data = list(test_data.apply(' '.join))
         test_vectors = self.vectorizer.transform(test_data)
         self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, entidad),self.predecir_SVC(test_vectors, entidad), self.predecir_KNN(test_vectors, entidad), self.predecir_MLP(test_vectors, entidad))
     '''Función que carga todos los botones correspondientes a las entidades reconocidas'''
     def buttonsNER(self, resultadoNER, df2):
         self.limpiarLayout(self.nerLayout)
-        textos = []
         self.botones = []
+        self.botones.append(QPushButton('Todas las entidades',self))
+        self.nerLayout.addWidget(self.botones[-1])
+        self.botones[-1].clicked.connect(lambda x = 'Todas las entidades':self.mostrarUnGraph(x, df2, 1))
         for i in resultadoNER:
             for j in i:
-                textos.append
                 self.botones.append(QPushButton(j[0], self)) #Creo el botón y lo añado a la lista
                 self.nerLayout.addWidget(self.botones[-1]) #Añado el botón al layout
-                self.botones[-1].clicked.connect(lambda x = j[0]:self.mostrarUnGraph(x, df2)) #Conecto el botón
+                self.botones[-1].clicked.connect(lambda x = j[0]:self.mostrarUnGraph(x, df2, 2)) #Conecto el botón
     '''Función para configurar todos los datos de la API de Twitter'''
     def configurarAPITwitter(self, buscar, restoConsulta):
         consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
@@ -152,6 +154,7 @@ class Ventana(QtWidgets.QWidget):
         pms = {'q' : q, 'count' : 100, 'lang' : 'en', 'result_type': 'recent'} 
         auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
         return {'auth': auth, 'pms': pms, 'url': url}
+    '''Función que configura la base de datos y realiza el proceso de paginación'''
     def paginacionMongo(self, url, pms, auth, nombre, colection, cliente, paginas):
         #inicialización de la base de datos para cargar los datos
         database_name = nombre
@@ -345,7 +348,7 @@ class Ventana(QtWidgets.QWidget):
             self.tablaSent.setItem(3,1,QTableWidgetItem("Negativo"))
         self.layoutWidget.addLayout(self.infoLayout)
         self.mostrarLayout(self.infoLayout)
-    '''Función que tokeniza los datos de un tweet, eliminando las stopwords y los carácteres especiales'''
+    '''Función que tokeniza los datos de un tweet, eliminando las stopwords y los caracteres especiales'''
     def tokenizar(self, df):
         #TOKENIZATION inicial para NER
         df.loc[:,'tokens'] = df['text'].apply(TweetTokenizer().tokenize)
@@ -407,6 +410,7 @@ class Ventana(QtWidgets.QWidget):
         return (it,y)
     '''Función que muestra los gráficos utilizando los plots de python'''
     def mostrar_graph(self, NB,SVC, KNN, MLP):
+        plt.figure(figsize=(9,7))
         #Naive Bayes
         plt.subplot(221)
         plt.title("NB para la entidad " + NB[0])
