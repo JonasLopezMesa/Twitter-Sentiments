@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.exceptions import NotFittedError
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score, recall_score, precision_score
 from sklearn.model_selection import cross_val_predict
 from sklearn.svm import SVC 
 from sklearn.neighbors import KNeighborsClassifier
@@ -42,6 +42,25 @@ class Ventana(QtWidgets.QWidget):
     def __init__(self, vectorizer, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
         self.vectorizer = vectorizer #Variable para el entrenamiento de algoritmos
+        #resultados de los mejores entrenamientos
+        self.resultadoEntrenamiento = {}
+        self.layoutReporte = QHBoxLayout()
+        self.svcF1Label = QLabel(self)
+        self.svcRecallLabel = QLabel(self)
+        self.svcPrecisionLabel = QLabel(self)
+        self.svcAccuracyLabel = QLabel(self)
+        self.mlpF1Label = QLabel(self)
+        self.mlpRecallLabel = QLabel(self)
+        self.mlpPrecisionLabel = QLabel(self)
+        self.mlpAccuracyLabel = QLabel(self)
+        self.knnF1Label = QLabel(self)
+        self.knnRecallLabel = QLabel(self)
+        self.knnPrecisionLabel = QLabel(self)
+        self.knnAccuracyLabel = QLabel(self)
+        self.nbF1Label = QLabel(self)
+        self.nbRecallLabel = QLabel(self)
+        self.nbPrecisionLabel = QLabel(self)
+        self.nbAccuracyLabel = QLabel(self)
         #Botones del menú principal
         self.buttonBloqueFile = QPushButton("&Analizar Bloque desde archivo", self)
         self.buttonBloqueTwitter = QPushButton("&Analizar Bloque desde Twitter.com", self)
@@ -416,8 +435,8 @@ class Ventana(QtWidgets.QWidget):
     def usar_NER(self, tweetys, n): 
         self.reiniciarEstado(len(tweetys)*10)
         self.actualizarEstado(1, "ANALIZANDO ENTIDADES: ")
-        st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
-        #st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
+        #st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
+        st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
         #Recuerda de que cambia para el mac que es donde vas a realizar la presentación
         entities = []
         tindice = 0
@@ -449,6 +468,25 @@ class Ventana(QtWidgets.QWidget):
             return (organizaciones, personas, lugares)
         else:
             return 0
+    def mostrarReporte(self):
+        self.limpiarLayout(self.layoutReporte)
+        self.svcF1Label.setText(self.resultadoEntrenamiento['svc']['f1'])
+        self.svcRecallLabel.setText(self.resultadoEntrenamiento['svc']['recall'])
+        self.svcPrecisionLabel.setText(self.resultadoEntrenamiento['svc']['precisión'])
+        self.svcAccuracyLabel.setText(self.resultadoEntrenamiento['svc']['puntuación'])
+        self.mlpF1Label.setText(self.resultadoEntrenamiento['mlp']['f1'])
+        self.mlpRecallLabel.setText(self.resultadoEntrenamiento['mlp']['recall'])
+        self.mlpPrecisionLabel.setText(self.resultadoEntrenamiento['mlp']['precisión'])
+        self.mlpAccuracyLabel.setText(self.resultadoEntrenamiento['mlp']['puntuación'])
+        self.knnF1Label.setText(self.resultadoEntrenamiento['knn']['f1'])
+        self.knnRecallLabel.setText(self.resultadoEntrenamiento['knn']['recall'])
+        self.knnPrecisionLabel.setText(self.resultadoEntrenamiento['knn']['precisión'])
+        self.knnAccuracyLabel.setText(self.resultadoEntrenamiento['knn']['puntuación'])
+        self.nbF1Label.setText(self.resultadoEntrenamiento['nb']['f1'])
+        self.nbRecallLabel.setText(self.resultadoEntrenamiento['nb']['recall'])
+        self.nbPrecisionLabel.setText(self.resultadoEntrenamiento['nb']['precisión'])
+        self.nbAccuracyLabel.setText(self.resultadoEntrenamiento['nb']['puntuación'])
+        self.setLayout(self.layoutReporte)
     '''Función que entrena todos los algoritmos utilizando datos de ficheros de entrenamiento y de test. En la misma función se limpian los datos tokenizados. Al final detecta cuál es la mejor configuración para el algoritmo y los entrena con dicha configuración'''
     def entrenar_algoritmos(self):
         #self.infoLayout.hide()
@@ -530,7 +568,7 @@ class Ventana(QtWidgets.QWidget):
                                 for e in params_svc[4]:
                                     PySide2.QtWidgets.QApplication.processEvents()
                                     mod = SVC(kernel=a,degree=b,coef0=c,probability=d,shrinking=e)
-                                    punt = self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                                    punt = self.entrenar(1,alg,train_vectors,train_labels,test_vectors, test_labels, mod)
                                     self.progressBarUnTweet.setValue(progreso)
                                     progreso = progreso + 1
                                     self.progresLabel.setText("Entrenando SVC con kernel " + a)
@@ -539,7 +577,7 @@ class Ventana(QtWidgets.QWidget):
                                         best_svc = [a,b,c,d,e]
             elif alg == 'NaiveBayes':
                 mod = MultinomialNB()
-                puntuaciones[1] = self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                puntuaciones[1] = self.entrenar(1,alg,train_vectors,train_labels,test_vectors, test_labels, mod)
             elif alg == 'Knn':
                 for a in params_knn[0]:
                     PySide2.QtWidgets.QApplication.processEvents()
@@ -555,7 +593,7 @@ class Ventana(QtWidgets.QWidget):
                                     self.progresLabel.setText("Entrenando KNN con kernel " + b + c)
                                     progreso = progreso + 1
                                     mod = KNeighborsClassifier(n_neighbors=a,weights=b,algorithm=c,leaf_size=d,p=e)
-                                    punt = self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                                    punt = self.entrenar(1,alg,train_vectors,train_labels,test_vectors, test_labels, mod)
                                     if punt > puntuaciones[2]:
                                         puntuaciones[2] = punt
                                         best_knn = [a,b,c,d,e]
@@ -572,7 +610,7 @@ class Ventana(QtWidgets.QWidget):
                                 self.progresLabel.setText("Entrenando MLP con kernel " + b + d)
                                 progreso = progreso + 1
                                 mod = MLPClassifier(hidden_layer_sizes=a,activation=b,alpha=c,learning_rate=d)
-                                punt = self.entrenar(alg,train_vectors,train_labels,test_vectors, test_labels, mod)
+                                punt = self.entrenar(1,alg,train_vectors,train_labels,test_vectors, test_labels, mod)
                                 if punt > puntuaciones[3]:
                                     puntuaciones[3] = punt
                                     best_mlp = [a,b,c,d]
@@ -586,16 +624,17 @@ class Ventana(QtWidgets.QWidget):
             guia = guia + 1
         self.progressBarUnTweet.setValue(progreso)
         progreso = progreso + 1
-        self.entrenar('Svc',train_vectors,train_labels,test_vectors, test_labels, SVC(kernel=best_svc[0],degree=best_svc[1],coef0=best_svc[2],probability=best_svc[3],shrinking=best_svc[4]))
-        self.entrenar('NaiveBayes',train_vectors,train_labels,test_vectors, test_labels, mod = MultinomialNB())
-        self.entrenar('Knn',train_vectors,train_labels,test_vectors, test_labels, KNeighborsClassifier(n_neighbors=best_knn[0],weights=best_knn[1],algorithm=best_knn[2],leaf_size=best_knn[3],p=best_knn[4]))
-        self.entrenar('Mlp',train_vectors,train_labels,test_vectors, test_labels, MLPClassifier(hidden_layer_sizes=best_mlp[0],activation=best_mlp[1],alpha=best_mlp[2],learning_rate=best_mlp[3]))
+        self.resultadoEntrenamiento['svc'] = self.entrenar(2,'Svc',train_vectors,train_labels,test_vectors, test_labels, SVC(kernel=best_svc[0],degree=best_svc[1],coef0=best_svc[2],probability=best_svc[3],shrinking=best_svc[4]))
+        self.resultadoEntrenamiento['nb'] = self.entrenar(2,'NaiveBayes',train_vectors,train_labels,test_vectors, test_labels, mod = MultinomialNB())
+        self.resultadoEntrenamiento['knn'] = self.entrenar(2,'Knn',train_vectors,train_labels,test_vectors, test_labels, KNeighborsClassifier(n_neighbors=best_knn[0],weights=best_knn[1],algorithm=best_knn[2],leaf_size=best_knn[3],p=best_knn[4]))
+        self.resultadoEntrenamiento['mlp'] = self.entrenar(2,'Mlp',train_vectors,train_labels,test_vectors, test_labels, MLPClassifier(hidden_layer_sizes=best_mlp[0],activation=best_mlp[1],alpha=best_mlp[2],learning_rate=best_mlp[3]))
+        self.mostrarReporte()
         self.progressBarUnTweet.setValue(progreso)
         self.progresLabel.setText("FINALIZADO")
         self.entrenamientoLabel.setText("<h1>ENTRENAMIENTO REALIZADO CON ÉXITO</h1>")
         self.layoutWidget.addWidget(self.entrenamientoLabel)
     '''Función auxiliar para usar_NER que guarda los archivos de entrenamiento para que se guarden en futuras sesiones'''
-    def entrenar(self, alg,train_vectors,train_labels,test_vectors, test_labels, mod):
+    def entrenar(self, opc, alg,train_vectors,train_labels,test_vectors, test_labels, mod):
         nfile = alg
         if path.exists(nfile):
             file = open(nfile, 'rb') #abre el archivo en modo lectura
@@ -606,15 +645,23 @@ class Ventana(QtWidgets.QWidget):
             dump(mod, file) #actualiza el entrenamiento
         else:
             file = open(nfile, 'wb') #abre el archivo en modo escritura
-            mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrna
+            mod.fit(train_vectors, train_labels).score(test_vectors, test_labels) #lo entrena
             dump(mod, file) #guarda el entrenamiento
-        print("MODELO ", alg, " ENTRENADO Y PROBADO")
+        #print("MODELO ", alg, " ENTRENADO Y PROBADO")
         #Estas tres funciones se usan para cuando se mejore el código
         #print(classification_report(test_labels, mod.predict(test_vectors)))
         #print(confusion_matrix(test_labels, mod.predict(test_vectors)))
         predicted = cross_val_predict(mod, test_vectors, test_labels, cv=10)
         #print("Cross validation %s" % accuracy_score(test_labels, predicted))
-        return accuracy_score(test_labels,predicted)
+        if opc == 1:
+            return accuracy_score(test_labels,predicted)
+        elif opc == 2:
+            return {'clasificación':classification_report(test_labels, mod.predict(test_vectors)), 
+            'matrix':confusion_matrix(test_labels, mod.predict(test_vectors)), 
+            'puntuación':accuracy_score(test_labels, predicted),
+            'f1':f1_score(test_labels, mod.predict(test_vectors), average='macro'),
+            'recall':recall_score(test_labels, mod.predict(test_vectors), average='macro'),
+            'precisión':precision_score(test_labels, mod.predict(test_vectors), average='macro')}
 """ Función principal del programa"""
 def main():
     nltk.download('stopwords')
