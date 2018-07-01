@@ -82,6 +82,7 @@ class Ventana(QtWidgets.QWidget):
         #Elementos para NER
         self.nerLayout = QVBoxLayout()
         self.layoutWidget.addLayout(self.nerLayout)
+        self.botones = []
         #Variables para la selección en cargar datos de twitter
         self.consultaText = ""
         self.consultaTweet = 0
@@ -121,7 +122,7 @@ class Ventana(QtWidgets.QWidget):
         self.consultaTweets = self.dialogTweets.getInt(self,"Cuántos twits quieres usar","La cantidad se multiplica por 100")
         self.nerCantidadValor = self.nerCantidad.getInt(self,"Cuántos twits quieres usar en NER","Tweets que se usarán para NER")
         self.cargar_datos_de_twitter()
-    '''Función para cargar datos de twitter directamente, lo almacena en una base de datos y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.'''
+    '''Función que muestra un gráfico con los datos pasados por parámetros'''
     def mostrarUnGraph(self, entidad, dataframe):
         dataframe = dataframe[dataframe['text'].str.contains(entidad)]
         dataframe = self.tokenizar(dataframe)
@@ -129,27 +130,32 @@ class Ventana(QtWidgets.QWidget):
         test_data = list(test_data.apply(' '.join))
         test_vectors = self.vectorizer.transform(test_data)
         self.mostrar_graph(self.predecir_Naive_Bayes(test_vectors, entidad),self.predecir_SVC(test_vectors, entidad), self.predecir_KNN(test_vectors, entidad), self.predecir_MLP(test_vectors, entidad))
-
+    '''Función que carga todos los botones correspondientes a las entidades reconocidas'''
     def buttonsNER(self, resultadoNER, df2):
-        botones = []
-        ind = 0
+        self.limpiarLayout(self.nerLayout)
+        textos = []
+        self.botones = []
         for i in resultadoNER:
             for j in i:
-                botones.append(QPushButton(j[0], self))
-                ind = ind + 1
-        for r in botones:
-            self.nerLayout.addWidget(r)
-            r.clicked.connect(self.mostrarUnGraph(j[0], df2))
-    def cargar_datos_de_twitter(self):
-        self.limpiarLayout(self.infoLayout)
+                textos.append
+                self.botones.append(QPushButton(j[0], self)) #Creo el botón y lo añado a la lista
+                self.nerLayout.addWidget(self.botones[-1]) #Añado el botón al layout
+                self.botones[-1].clicked.connect(lambda x = j[0]:self.mostrarUnGraph(x, df2)) #Conecto el botón
+    '''Función para configurar todos los datos de la API de Twitter'''
+    def configurarAPITwitter(self, buscar, restoConsulta):
         consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
         consumer_secret='6alIXTKSxf0RE57QK3fDQ8dxdvlsVr1IRsHDZmoSlMx96YKBFD'
         access_token='966591013182722049-BVXW14Hf5s6O2oIwS3vtJ3S3dOsKLbY'
         access_token_secret='829DTKPjmwsSytmp1ky9fMCJkjV0LZ04TbL9oqHGV6cDm'
-        q = self.consultaText[0] + ' -filter:retweets AND -filter:replies' #parámetros de la consulta
+        q = self.consultaText[0] + restoConsulta #parámetros de la consulta
         url = 'https://api.Twitter.com/1.1/search/tweets.json'
         pms = {'q' : q, 'count' : 100, 'lang' : 'en', 'result_type': 'recent'} 
         auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
+        return {'auth': auth, 'pms': pms, 'url': url}
+    '''Función para cargar datos de twitter directamente, lo almacena en una base de datos y lo devuelve en un dataframe. Se usa sólo para ver los resultados. No para entrenar.'''
+    def cargar_datos_de_twitter(self):
+        self.limpiarLayout(self.infoLayout)
+        datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
         #inicialización de la base de datos para cargar los datos
         database_name = "baseDeDatos"
         collection_name = "coleccion"
@@ -161,10 +167,10 @@ class Ventana(QtWidgets.QWidget):
         number_of_pages = self.consultaTweets[0]
         while pages_counter < number_of_pages:
             pages_counter += 1
-            res = requests.get(url, params = pms, auth=auth)
+            res = requests.get(datosAPI['url'], params = datosAPI['pms'], auth = datosAPI['auth'])
             tweets = res.json()
             ids = [i['id'] for i in tweets['statuses']]
-            pms['max_id'] = min(ids) - 1
+            datosAPI['pms']['max_id'] = min(ids) - 1
             collection.insert_many(tweets['statuses'])
         #Pasar de la base de datos a un dataframe
         documents = []
@@ -238,18 +244,7 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.setMaximum(10)
         self.progressBarUnTweet.setMinimum(0)
         #self.layoutProgressBar.addWidget(self.progressBarUnTweet)
-        #Claves y tokens de la cuenta de twitter
-        consumer_key='ynSB0dFvqPl3xRU7AmYk39rGT'
-        consumer_secret='6alIXTKSxf0RE57QK3fDQ8dxdvlsVr1IRsHDZmoSlMx96YKBFD'
-        access_token='966591013182722049-BVXW14Hf5s6O2oIwS3vtJ3S3dOsKLbY'
-        access_token_secret='829DTKPjmwsSytmp1ky9fMCJkjV0LZ04TbL9oqHGV6cDm'
-        self.progressBarUnTweet.setValue(1)
-        self.progresLabel.setText("Estableciendo claves de acceso")
-        #parámetros de la consulta
-        q = self.consultaText[0] + ' -filter:retweets AND -filter:replies'
-        url = 'https://api.Twitter.com/1.1/search/tweets.json'
-        pms = {'q' : q, 'count' : 10, 'lang' : 'en', 'result_type': 'recent'} 
-        auth = OAuth1(consumer_key, consumer_secret, access_token,access_token_secret)
+        datosAPI = self.configurarAPITwitter(self.consultaText[0],' -filter:retweets AND -filter:replies')
         #inicialización de la base de datos para cargar los datos
         database_name = "baseDeDatos"
         collection_name = "coleccion"
@@ -263,10 +258,10 @@ class Ventana(QtWidgets.QWidget):
         number_of_pages = 1 #Número de veces que cuenta
         while pages_counter < number_of_pages:
             pages_counter += 1
-            res = requests.get(url, params = pms, auth=auth)
+            res = requests.get(datosAPI['url'], params = datosAPI['pms'], auth = datosAPI['auth'])
             tweets = res.json()
             ids = [i['id'] for i in tweets['statuses']]
-            pms['max_id'] = min(ids) - 1
+            datosAPI['pms']['max_id'] = min(ids) - 1
             collection.insert_many(tweets['statuses'])
         self.progressBarUnTweet.setValue(3)
         self.progresLabel.setText("Guardando tweets en base de datos")
@@ -365,15 +360,15 @@ class Ventana(QtWidgets.QWidget):
     '''Función que tokeniza los datos de un tweet, eliminando las stopwords y los carácteres especiales'''
     def tokenizar(self, df):
         #TOKENIZATION inicial para NER
-        df['tokens'] = df['text'].apply(TweetTokenizer().tokenize)
+        df.loc[:,'tokens'] = df['text'].apply(TweetTokenizer().tokenize)
         #STOPWORDS
         stopwords_vocabulary = stopwords.words('english') #estará en español?
-        df['stopwords'] = df['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
+        df.loc[:,'stopwords'] = df['tokens'].apply(lambda x: [i for i in x if i.lower() not in stopwords_vocabulary])
         #SPECIAL CHARACTERS AND STOPWORDS REMOVAL
         punctuations = list(string.punctuation)
-        df['punctuation'] = df['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
-        df['digits'] = df['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
-        df['final'] = df['digits'].apply(lambda x: [i for i in x if len(i) > 1])
+        df.loc[:,'punctuation'] = df['stopwords'].apply(lambda x: [i for i in x if i not in punctuations])
+        df.loc[:,'digits'] = df['punctuation'].apply(lambda x: [i for i in x if i[0] not in list(string.digits)])
+        df.loc[:,'final'] = df['digits'].apply(lambda x: [i for i in x if len(i) > 1])
         return df
     '''Función que recibe un dataframe con tweets de twitter y los deja preparados para ser tokenizados'''
     def limpieza_de_datos_de_twitter(self, df):
@@ -455,8 +450,8 @@ class Ventana(QtWidgets.QWidget):
         self.progressBarUnTweet.setMaximum(len(tweetys)*10)
         self.progressBarUnTweet.setMinimum(0)
         self.progresLabel.setText("ANALIZANDO ENTIDADES")
-        #st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
-        st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
+        st = StanfordNERTagger(r'C:\Users\Servicio Técnico\Documents\stanford-ner-2018-02-27\classifiers\english.all.3class.distsim.crf.ser.gz')
+        #st = StanfordNERTagger('/Users/jonas/stanford-ner-2018-02-27/classifiers/english.all.3class.distsim.crf.ser.gz')
         #Recuerda de que cambia para el mac que es donde vas a realizar la presentación
         entities = []
         tindice = 0
